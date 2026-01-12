@@ -8,47 +8,52 @@ from torch.utils.data import DataLoader, TensorDataset
 import joblib
 
 # -----------------------------
-# Config
+# Configuration (Fast Training)
 # -----------------------------
 SEQ_LEN = 24       # sequence length for LSTM
-EPOCHS = 20
+EPOCHS = 1         # 1 epoch for fast training
 LR = 0.001
-BATCH_SIZE = 32
+BATCH_SIZE = 16    # smaller batch
 HIDDEN_SIZE = 50
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+USE_GPU = torch.cuda.is_available()
+device = torch.device("cuda" if USE_GPU else "cpu")
 print(f"Using device: {device}")
 
 # -----------------------------
-# Load dataset
+# Load Dataset
 # -----------------------------
 data = pd.read_csv("data/energy.csv", sep=";", na_values=["?"])
 data.dropna(inplace=True)
-data['datetime'] = pd.to_datetime(data['Date'] + ' ' + data['Time'], dayfirst=True)
-data.drop(['Date','Time'], axis=1, inplace=True)
 
-values = data["Global_active_power"].astype(float).values.reshape(-1,1)
+# Combine Date and Time into datetime column if present
+if 'Date' in data.columns and 'Time' in data.columns:
+    data['datetime'] = pd.to_datetime(data['Date'] + ' ' + data['Time'], dayfirst=True)
+    data.drop(['Date', 'Time'], axis=1, inplace=True)
 
-# -----------------------------
+# Use only numeric column
+values = data["Global_active_power"].astype(float).values.reshape(-1, 1)
+
 # Scale values
-# -----------------------------
 scaler = MinMaxScaler()
 scaled = scaler.fit_transform(values)
 
 # -----------------------------
-# Create sequences
+# Create Sequences
 # -----------------------------
 def create_sequences(data, seq_len):
     X, y = [], []
     for i in range(len(data) - seq_len):
-        X.append(data[i:i+seq_len])
-        y.append(data[i+seq_len])
+        X.append(data[i:i + seq_len])
+        y.append(data[i + seq_len])
     return np.array(X), np.array(y)
 
 X_np, y_np = create_sequences(scaled, SEQ_LEN)
 
-# Optional: reduce dataset for testing
-# X_np = X_np[:5000]
-# y_np = y_np[:5000]
+# -----------------------------
+# Reduce dataset for super fast training
+# -----------------------------
+X_np = X_np[:1000]
+y_np = y_np[:1000]
 
 # Convert to torch tensors
 X_tensor = torch.tensor(X_np, dtype=torch.float32)
@@ -79,7 +84,7 @@ criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=LR)
 
 # -----------------------------
-# Training loop
+# Training Loop (Fast)
 # -----------------------------
 for epoch in range(EPOCHS):
     epoch_loss = 0
@@ -98,7 +103,7 @@ for epoch in range(EPOCHS):
     print(f"Epoch [{epoch+1}/{EPOCHS}], Loss: {epoch_loss:.6f}")
 
 # -----------------------------
-# Save model and scaler
+# Save Model & Scaler
 # -----------------------------
 os.makedirs("model", exist_ok=True)
 torch.save(model.state_dict(), "model/lstm_model.pt")
@@ -106,4 +111,3 @@ print("Model saved to model/lstm_model.pt")
 
 joblib.dump(scaler, "model/scaler.save")
 print("Scaler saved to model/scaler.save")
-
