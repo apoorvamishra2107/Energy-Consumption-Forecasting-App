@@ -15,14 +15,17 @@ EPOCHS = 1         # 1 epoch for fast training
 LR = 0.001
 BATCH_SIZE = 16    # smaller batch
 HIDDEN_SIZE = 50
-USE_GPU = torch.cuda.is_available()
-device = torch.device("cuda" if USE_GPU else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # -----------------------------
 # Load Dataset
 # -----------------------------
-data = pd.read_csv("data/energy.csv", sep=";", na_values=["?"])
+DATA_PATH = "data/energy.csv"
+if not os.path.exists(DATA_PATH):
+    raise FileNotFoundError(f"{DATA_PATH} not found. Make sure the data folder is present.")
+
+data = pd.read_csv(DATA_PATH, sep=";", na_values=["?"])
 data.dropna(inplace=True)
 
 # Combine Date and Time into datetime column if present
@@ -50,7 +53,7 @@ def create_sequences(data, seq_len):
 X_np, y_np = create_sequences(scaled, SEQ_LEN)
 
 # -----------------------------
-# Reduce dataset for super fast training
+# Reduce dataset for super fast training (optional)
 # -----------------------------
 X_np = X_np[:1000]
 y_np = y_np[:1000]
@@ -106,8 +109,10 @@ for epoch in range(EPOCHS):
 # Save Model & Scaler
 # -----------------------------
 os.makedirs("model", exist_ok=True)
+# Always save CPU weights for deployment
 torch.save(model.state_dict(), "model/lstm_model.pt")
 print("Model saved to model/lstm_model.pt")
 
 joblib.dump(scaler, "model/scaler.save")
 print("Scaler saved to model/scaler.save")
+
